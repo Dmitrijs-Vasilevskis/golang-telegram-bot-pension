@@ -3,9 +3,9 @@ package handlers
 import (
 	"context"
 
-	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/helpers"
-	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/service"
-	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/utils"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/helpers"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/service"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/utils"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 )

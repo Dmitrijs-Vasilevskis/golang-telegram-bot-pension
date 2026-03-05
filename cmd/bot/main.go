@@ -7,8 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/helpers"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/handlers"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/helpers"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/logger"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/router"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -52,6 +53,8 @@ func main() {
 	botClient.RegisterHandler(bot.HandlerTypeMessageText, "", bot.MatchTypeContains,
 		func(ctx context.Context, bot *bot.Bot, update *models.Update) {
 			text := update.Message.Text
+
+			logger.LogUpdate(update)
 
 			if helpers.IsToxic(text) {
 				handlers.Clown(ctx, bot, update)
