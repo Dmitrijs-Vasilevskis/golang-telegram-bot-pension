@@ -1,17 +1,23 @@
 services:
   telegram-bot:
-    image: dmitrijsvasilevskis/telegram_bot
+    image: docker.io/dmitrijsvasilevskis/telegram-bot:latest
     container_name: telegram_bot
     restart: always
     env_file:
       - .env
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "pgrep", "bot"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   watchtower:
-    image: containrrr/watchtower
+    image: docker.io/containrrr/watchtower:latest
     container_name: bot-watchtower
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    command: --interval 300 --label-enable
+    command: --interval 300 --label-enable --cleanup --rolling-restart
