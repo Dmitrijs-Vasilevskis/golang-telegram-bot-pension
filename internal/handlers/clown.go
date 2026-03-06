@@ -9,5 +9,5 @@ import (
 )
 
 func Clown(ctx context.Context, b *bot.Bot, update *models.Update) {
-	utils.Emote(ctx, b, update, false, "😢")
+	utils.Emote(ctx, b, update, false, "🤡")
 }
