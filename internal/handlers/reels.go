@@ -16,5 +16,6 @@ func Reels(ctx context.Context, b *bot.Bot, update *models.Update) {
 		url, _ := helpers.BuildKkInstagramUrl(reelId)
 
 		utils.Reply(ctx, b, update, url)
+		utils.Delete(ctx, b, update)
 	}
 }
