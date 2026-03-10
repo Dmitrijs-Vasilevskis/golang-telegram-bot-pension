@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"log"
+	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -15,9 +16,13 @@ func Duplicator(ctx context.Context, b *bot.Bot, update *models.Update) {
 
 	switch {
 	case msg.Text != "":
+		text := msg.Text
+		if strings.Contains(text, ")") {
+			text = text + " 🤡"
+		}
 		_, err = b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: targetChatID,
-			Text:   msg.Text,
+			Text:   text,
 		})
 	case len(msg.Photo) > 0:
 		photo := msg.Photo[len(msg.Photo)-1]
