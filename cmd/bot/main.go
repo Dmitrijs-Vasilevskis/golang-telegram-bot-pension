@@ -71,6 +71,14 @@ func main() {
 		},
 		dispatcher.MainHandler(app, r))
 
+	botClient.RegisterHandlerMatchFunc(
+		func(update *models.Update) bool {
+			return update != nil && update.CallbackQuery != nil
+		},
+		func(ctx context.Context, b *bot.Bot, update *models.Update) {
+			menuManager.HandleCallback(ctx, b, update, app)
+		})
+
 	botClient.RegisterHandlerMatchFunc(func(update *models.Update) bool {
 		if update == nil || update.MyChatMember == nil {
 			return false
