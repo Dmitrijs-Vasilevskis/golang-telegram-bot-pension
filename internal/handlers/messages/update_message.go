@@ -31,7 +31,7 @@ func UpdateMessage(
 	}
 
 	err := database.WithTransaction(ctx, db, func(tx pgx.Tx) error {
-		txRepo := repository.NewMessageRepository(tx)
+		txRepo := repository.NewRepository(tx)
 
 		if err := txRepo.Update(ctx, updatedMessage); err != nil {
 			return err
