@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/database"
+	moderHandler "github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/handlers/moderation"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/helpers"
 	messageModel "github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/models"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/repository"
 	"github.com/go-telegram/bot"
@@ -21,6 +23,10 @@ func UpdateMessage(
 	db *pgxpool.Pool,
 ) {
 	message := update.EditedMessage
+
+	if helpers.IsToxic(message.Text) {
+		moderHandler.Clown(ctx, b, update)
+	}
 
 	now := time.Now()
 	updatedMessage := &messageModel.Message{
