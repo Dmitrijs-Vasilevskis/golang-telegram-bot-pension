@@ -8,6 +8,6 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-func Clown(ctx context.Context, b *bot.Bot, update *models.Update) {
-	utils.Emote(ctx, b, update, false, "🤡")
+func Clown(ctx context.Context, b *bot.Bot, message *models.Message) {
+	utils.Emote(ctx, b, message, false, "🤡")
 }

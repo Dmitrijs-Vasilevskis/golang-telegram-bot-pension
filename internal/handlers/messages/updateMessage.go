@@ -25,7 +25,7 @@ func UpdateMessage(
 	message := update.EditedMessage
 
 	if helpers.IsToxic(message.Text) {
-		moderHandler.Clown(ctx, b, update)
+		moderHandler.Clown(ctx, b, message)
 	}
 
 	now := time.Now()

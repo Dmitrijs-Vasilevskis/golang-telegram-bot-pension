@@ -33,7 +33,7 @@ func MainHandler(app *app.App, r *router.Router) bot.HandlerFunc {
 		}
 
 		if helpers.IsToxic(messageText) {
-			moderHandler.Clown(ctx, bot, update)
+			moderHandler.Clown(ctx, bot, message)
 		}
 
 		r.Handle(ctx, bot, update)
