@@ -8,7 +8,7 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-func Emote(ctx context.Context, b *bot.Bot, update *models.Update, big bool, emoji string) {
+func Emote(ctx context.Context, b *bot.Bot, message *models.Message, big bool, emoji string) {
 	reaction := []models.ReactionType{
 		{
 			Type: models.ReactionTypeTypeEmoji,
@@ -19,8 +19,8 @@ func Emote(ctx context.Context, b *bot.Bot, update *models.Update, big bool, emo
 	}
 
 	_, err := b.SetMessageReaction(ctx, &bot.SetMessageReactionParams{
-		ChatID:    update.Message.Chat.ID,
-		MessageID: update.Message.ID,
+		ChatID:    message.Chat.ID,
+		MessageID: message.ID,
 		Reaction:  reaction,
 		IsBig:     &big,
 	})
