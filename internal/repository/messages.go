@@ -90,7 +90,7 @@ func (r *Repository) TrimMessages(ctx context.Context, chatID int64, limit int) 
 
 func (r *Repository) GetMessagesInRange(ctx context.Context, chatID int64, from, to time.Time) ([]models.Message, error) {
 	query := `
-		SELECT id, chat_id, username, text, created_at
+		SELECT id, chat_id, message_id, username, text, created_at, updated_at
 		FROM messages
 		WHERE chat_id = $1
 			AND created_at >= $2
@@ -113,6 +113,7 @@ func (r *Repository) GetMessagesInRange(ctx context.Context, chatID int64, from,
 	return messages, nil
 }
 
+// unsued
 func (r *Repository) CountMessages(ctx context.Context, chatID int64) (int64, error) {
 	query := `SELECT COUNT(*) FROM messages WHERE chat_id = $1`
 

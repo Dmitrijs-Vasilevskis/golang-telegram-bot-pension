@@ -1,4 +1,3 @@
-// internal/repository/chat.go
 package repository
 
 import (
@@ -6,48 +5,21 @@ import (
 	"fmt"
 
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/models"
+	"github.com/jackc/pgx/v5"
 )
 
-// EnsureUserExists создаёт или обновляет пользователя
-func (r *Repository) EnsureUserExists(ctx context.Context, userID int64, username, firstName, lastName string) error {
-	query := `
-		INSERT INTO users (id, username, first_name, last_name, created_at)
-		VALUES ($1, $2, $3, $4, NOW())
-		ON CONFLICT (id) DO UPDATE SET
-			username = EXCLUDED.username,
-			first_name = EXCLUDED.first_name,
-			last_name = EXCLUDED.last_name
-	`
-
-	_, err := r.db.Exec(ctx, query, userID, username, firstName, lastName)
-	if err != nil {
-		return fmt.Errorf("failed to ensure user exists: %w", err)
-	}
-	return nil
-}
-
-// EnsureChatExists создаёт запись о чате, если её нет
-func (r *Repository) EnsureChatExists(ctx context.Context, chatID int64, title, chatType string) error {
-	query := `
-		INSERT INTO chats (id, title, type, created_at)
-		VALUES ($1, $2, $3, NOW())
-		ON CONFLICT (id) DO UPDATE SET
-			title = EXCLUDED.title,
-			type = EXCLUDED.type
-	`
-
-	_, err := r.db.Exec(ctx, query, chatID, title, chatType)
-	if err != nil {
-		return fmt.Errorf("failed to ensure chat exists: %w", err)
-	}
-	return nil
-}
-
-// RegisterChatWithDefaults регистрирует новый чат с настройками по умолчанию
+// RegisterChatWithDefaults registers a new chat with default settings
 func (r *Repository) RegisterChatWithDefaults(ctx context.Context, chatID int64, title, chatType string, addedByUserID int64, addedByUsername, addedByFirstName, addedByLastName string) error {
+	tx, err := r.beginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start tx for chat registration: %w", err)
+	}
+	defer tx.Rollback(ctx)
 
-	// 1. Создаём пользователя, который добавил бота
-	_, err := r.db.Exec(ctx, `
+	txRepo := NewRepository(tx)
+
+	// Create a user who added the bot
+	_, err = txRepo.db.Exec(ctx, `
 		INSERT INTO users (id, username, first_name, last_name, created_at)
 		VALUES ($1, $2, $3, $4, NOW())
 		ON CONFLICT (id) DO UPDATE SET
@@ -59,8 +31,8 @@ func (r *Repository) RegisterChatWithDefaults(ctx context.Context, chatID int64,
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	// 2. Создаём чат
-	_, err = r.db.Exec(ctx, `
+	// Create a chat
+	_, err = txRepo.db.Exec(ctx, `
 		INSERT INTO chats (id, title, type, created_at)
 		VALUES ($1, $2, $3, NOW())
 		ON CONFLICT (id) DO UPDATE SET
@@ -71,8 +43,8 @@ func (r *Repository) RegisterChatWithDefaults(ctx context.Context, chatID int64,
 		return fmt.Errorf("failed to create chat: %w", err)
 	}
 
-	// 3. Добавляем пользователя как администратора
-	_, err = r.db.Exec(ctx, `
+	// Add a user as an administrator
+	_, err = txRepo.db.Exec(ctx, `
 		INSERT INTO chat_admins (chat_id, user_id, role)
 		VALUES ($1, $2, 'administrator')
 		ON CONFLICT (chat_id, user_id) DO NOTHING
@@ -81,8 +53,8 @@ func (r *Repository) RegisterChatWithDefaults(ctx context.Context, chatID int64,
 		return fmt.Errorf("failed to add admin: %w", err)
 	}
 
-	// 4. Создаём конфигурацию бота (summary и duplicate отключены по умолчанию)
-	_, err = r.db.Exec(ctx, `
+	// Create a bot configuration (summary and duplicate are disabled by default)
+	_, err = txRepo.db.Exec(ctx, `
 		INSERT INTO bot_configs (chat_id, summary_enabled, duplicate_dm_enabled, updated_by, created_at, updated_at)
 		VALUES ($1, false, false, $2, NOW(), NOW())
 		ON CONFLICT (chat_id) DO UPDATE SET
@@ -95,35 +67,46 @@ func (r *Repository) RegisterChatWithDefaults(ctx context.Context, chatID int64,
 		return fmt.Errorf("failed to create bot config: %w", err)
 	}
 
-	// 5. Создаём записи для всех команд (включены по умолчанию)
-	commands := []string{"ask", "summary", "factcheck", "look", "status"}
-	for _, cmd := range commands {
-		_, err = r.db.Exec(ctx, `
-			INSERT INTO command_configs (chat_id, command_name, enabled)
-			VALUES ($1, $2, true)
-			ON CONFLICT (chat_id, command_name) DO NOTHING
-		`, chatID, cmd)
-		if err != nil {
-			return fmt.Errorf("failed to create command config for %s: %w", cmd, err)
-		}
+	// Create records for all commands (enabled by default)
+	_, err = txRepo.db.Exec(ctx, `
+		INSERT INTO command_configs (chat_id, command_name, enabled)
+		VALUES
+			($1, 'ask', true),
+			($1, 'summary', false),
+			($1, 'factcheck', false),
+			($1, 'look', true),
+			($1, 'status', true)
+		ON CONFLICT (chat_id, command_name) DO NOTHING
+	`, chatID)
+	if err != nil {
+		return fmt.Errorf("failed to create command configs: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit chat registration tx: %w", err)
 	}
 
 	return nil
 }
 
-// SyncChatAdmins синхронизирует администраторов чата
+// SyncChatAdmins syncs chat administrators
 func (r *Repository) SyncChatAdmins(ctx context.Context, chatID int64, admins []TelegramAdmin) error {
+	tx, err := r.beginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start tx for admin sync: %w", err)
+	}
+	defer tx.Rollback(ctx)
 
-	// 1. Удаляем старых администраторов
-	_, err := r.db.Exec(ctx, `DELETE FROM chat_admins WHERE chat_id = $1`, chatID)
+	// Removing old administrators
+	_, err = tx.Exec(ctx, `DELETE FROM chat_admins WHERE chat_id = $1`, chatID)
 	if err != nil {
 		return fmt.Errorf("failed to delete old admins: %w", err)
 	}
 
-	// 2. Добавляем новых администраторов
+	// Adding new administrators
 	for _, admin := range admins {
-		// Сначала создаём пользователя
-		_, err = r.db.Exec(ctx, `
+		// At the first create a user
+		_, err = tx.Exec(ctx, `
 			INSERT INTO users (id, username, first_name, last_name, created_at)
 			VALUES ($1, $2, $3, $4, NOW())
 			ON CONFLICT (id) DO UPDATE SET
@@ -135,8 +118,8 @@ func (r *Repository) SyncChatAdmins(ctx context.Context, chatID int64, admins []
 			return fmt.Errorf("failed to create user %d: %w", admin.UserID, err)
 		}
 
-		// Добавляем как администратора
-		_, err = r.db.Exec(ctx, `
+		// sets as admin/creator
+		_, err = tx.Exec(ctx, `
 			INSERT INTO chat_admins (chat_id, user_id, role)
 			VALUES ($1, $2, $3)
 		`, chatID, admin.UserID, admin.Role)
@@ -145,10 +128,13 @@ func (r *Repository) SyncChatAdmins(ctx context.Context, chatID int64, admins []
 		}
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit admin sync tx: %w", err)
+	}
+
 	return nil
 }
 
-// GetChatConfig возвращает конфигурацию чата
 func (r *Repository) GetChatConfig(ctx context.Context, chatID int64) (*models.BotConfig, error) {
 	var config models.BotConfig
 	err := r.db.QueryRow(ctx, `
@@ -169,7 +155,6 @@ func (r *Repository) GetChatConfig(ctx context.Context, chatID int64) (*models.B
 	return &config, nil
 }
 
-// GetCommandConfigs возвращает настройки команд для чата
 func (r *Repository) GetCommandConfigs(ctx context.Context, chatID int64) (map[string]bool, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT command_name, enabled
@@ -192,4 +177,76 @@ func (r *Repository) GetCommandConfigs(ctx context.Context, chatID int64) (map[s
 	}
 
 	return configs, nil
+}
+
+func (r *Repository) GetFeatureConfig(ctx context.Context, chatID int64, feature string) (bool, error) {
+	var col string
+
+	switch feature {
+	case "summary":
+		col = "summary_enabled"
+	case "duplicate_dm":
+		col = "duplicate_dm_enabled"
+	default:
+		return false, fmt.Errorf("unknown feature: %s", feature)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT %s
+		FROM bot_configs
+		WHERE chat_id = $1
+	`, col)
+
+	var enabled bool
+	err := r.db.QueryRow(ctx, query, chatID).Scan(&enabled)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return false, ErrNotFound
+		}
+		return false, fmt.Errorf("failed to get feature config: %w", err)
+	}
+
+	return enabled, nil
+}
+
+func (r *Repository) SetFeature(ctx context.Context, chatID int64, userID int64, feature string, enabled bool) error {
+	var col string
+
+	switch feature {
+	case "summary":
+		col = "summary_enabled"
+	case "duplicate_dm":
+		col = "duplicate_dm_enabled"
+	default:
+		return fmt.Errorf("unknown feature: %s", feature)
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE bot_configs
+		SET %s = $1,
+			updated_by = $2,
+			updated_at = NOW()
+			WHERE chat_id = $3
+	`, col)
+
+	tag, err := r.db.Exec(ctx, query, enabled, userID, chatID)
+	if err != nil {
+		return fmt.Errorf("Failed to update feature %s: %w", feature, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (r *Repository) beginTx(ctx context.Context) (pgx.Tx, error) {
+	txStarter, ok := r.db.(interface {
+		Begin(context.Context) (pgx.Tx, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("database connection does not support transactions")
+	}
+
+	return txStarter.Begin(ctx)
 }

@@ -1,34 +1,16 @@
-// internal/service/chat.go
 package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/logger"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/repository"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 )
-
-type TelegramAdmin struct {
-	UserID    int64
-	Username  string
-	FirstName string
-	LastName  string
-	Role      string // "creator" or "administrator"
-}
-
-type ChatConfig struct {
-	ChatID             int64
-	SummaryEnabled     bool
-	DuplicateDMEnabled bool
-	UpdatedBy          *int64
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-}
 
 type ChatService struct {
 	repo *repository.Repository
@@ -39,9 +21,7 @@ func NewChatService(repo *repository.Repository, b *bot.Bot) *ChatService {
 	return &ChatService{repo: repo, bot: b}
 }
 
-// RegisterChat регистрирует чат в системе при добавлении бота
 func (s *ChatService) RegisterChat(ctx context.Context, chatID int64, title, chatType string, addedByUser *models.User) error {
-	// 1. Регистрируем чат с настройками по умолчанию
 	err := s.repo.RegisterChatWithDefaults(
 		ctx,
 		chatID,
@@ -56,9 +36,7 @@ func (s *ChatService) RegisterChat(ctx context.Context, chatID int64, title, cha
 		return fmt.Errorf("failed to register chat: %w", err)
 	}
 
-	// 2. Синхронизируем всех администраторов чата
 	if err := s.SyncChatAdmins(ctx, chatID); err != nil {
-		// Логируем ошибку, но не прерываем регистрацию
 		log.Printf("Warning: failed to sync admins for chat %d: %v", chatID, err)
 	}
 
@@ -66,9 +44,7 @@ func (s *ChatService) RegisterChat(ctx context.Context, chatID int64, title, cha
 	return nil
 }
 
-// SyncChatAdmins синхронизирует всех администраторов чата из Telegram
 func (s *ChatService) SyncChatAdmins(ctx context.Context, chatID int64) error {
-	// Получаем администраторов из Telegram
 	admins, err := s.bot.GetChatAdministrators(ctx, &bot.GetChatAdministratorsParams{
 		ChatID: chatID,
 	})
@@ -78,7 +54,6 @@ func (s *ChatService) SyncChatAdmins(ctx context.Context, chatID int64) error {
 
 	logger.DebugJson(admins)
 
-	// Конвертируем в наш формат
 	var repoAdmins []repository.TelegramAdmin
 	for _, admin := range admins {
 		role := string(admin.Type)
@@ -103,7 +78,6 @@ func (s *ChatService) SyncChatAdmins(ctx context.Context, chatID int64) error {
 		}
 	}
 
-	// Сохраняем в базу
 	if err := s.repo.SyncChatAdmins(ctx, chatID, repoAdmins); err != nil {
 		return fmt.Errorf("failed to sync admins to DB: %w", err)
 	}
@@ -111,12 +85,10 @@ func (s *ChatService) SyncChatAdmins(ctx context.Context, chatID int64) error {
 	return nil
 }
 
-// IsCommandEnabled проверяет, включена ли команда в чате
 func (s *ChatService) IsCommandEnabled(ctx context.Context, chatID int64, command string) (bool, error) {
 	configs, err := s.repo.GetCommandConfigs(ctx, chatID)
 	if err != nil {
-		// Если нет конфигурации, команда включена по умолчанию
-		return true, nil
+		return false, err
 	}
 
 	enabled, exists := configs[command]
@@ -127,7 +99,19 @@ func (s *ChatService) IsCommandEnabled(ctx context.Context, chatID int64, comman
 	return enabled, nil
 }
 
-// IsSummaryEnabled проверяет, включена ли функция summary
+func (s *ChatService) IsFeatureEnabled(ctx context.Context, chatID int64, feature string) (bool, error) {
+	cfg, err := s.repo.GetFeatureConfig(ctx, chatID, feature)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return cfg, nil
+}
+
+// unsued
 func (s *ChatService) IsSummaryEnabled(ctx context.Context, chatID int64) (bool, error) {
 	config, err := s.repo.GetChatConfig(ctx, chatID)
 	if err != nil {
@@ -137,7 +121,7 @@ func (s *ChatService) IsSummaryEnabled(ctx context.Context, chatID int64) (bool,
 	return config.SummaryEnabled, nil
 }
 
-// IsDuplicateDMEnabled проверяет, включено ли дублирование DM
+// unsued
 func (s *ChatService) IsDuplicateDMEnabled(ctx context.Context, chatID int64) (bool, error) {
 	config, err := s.repo.GetChatConfig(ctx, chatID)
 	if err != nil {
@@ -146,22 +130,18 @@ func (s *ChatService) IsDuplicateDMEnabled(ctx context.Context, chatID int64) (b
 	return config.DuplicateDMEnabled, nil
 }
 
-// internal/service/chat.go
 func (s *ChatService) GetUserChats(ctx context.Context, userID int64) ([]models.Chat, error) {
-	// Получаем ID чатов, где пользователь является администратором
 	adminChats, err := s.repo.GetUserAdminChats(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Получаем информацию о чатах из Telegram
 	var chats []models.Chat
 	for _, adminChat := range adminChats {
 		chat, err := s.bot.GetChat(ctx, &bot.GetChatParams{
 			ChatID: adminChat.ChatID,
 		})
 		if err != nil {
-			// Если не можем получить чат, пропускаем
 			continue
 		}
 		formattedChat := &models.Chat{
@@ -179,4 +159,8 @@ func (s *ChatService) GetUserChats(ctx context.Context, userID int64) ([]models.
 	}
 
 	return chats, nil
+}
+
+func (s *ChatService) SetFeature(ctx context.Context, chatID int64, userID int64, feature string, enabled bool) error {
+	return s.repo.SetFeature(ctx, chatID, userID, feature, enabled)
 }

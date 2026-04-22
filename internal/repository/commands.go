@@ -7,21 +7,16 @@ import (
 )
 
 func (r *Repository) EnsureDefaultCommands(ctx context.Context, chatID int64) error {
-	commands := []string{"ask", "summary", "factcheck", "look"}
-
-	for _, cmd := range commands {
-		_, err := r.db.Exec(ctx, `
-			INSERT INTO command_configs (chat_id, command_name, enabled)
-			VALUES ($1, $2, TRUE)
-			ON CONFLICT (chat_id, command_name) DO NOTHING
-		`, chatID, cmd)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	_, err := r.db.Exec(ctx, `
+		INSERT INTO command_configs (chat_id, command_name, enabled)
+		VALUES
+			($1, 'ask', TRUE),
+			($1, 'summary', TRUE),
+			($1, 'factcheck', TRUE),
+			($1, 'look', TRUE)
+		ON CONFLICT (chat_id, command_name) DO NOTHING
+	`, chatID)
+	return err
 }
 
 func (r *Repository) ToggleCommand(ctx context.Context, chatID int64, command string) error {
@@ -31,8 +26,15 @@ func (r *Repository) ToggleCommand(ctx context.Context, chatID int64, command st
 		WHERE chat_id = $1 AND command_name = $2
 	`
 
-	_, err := r.db.Exec(ctx, query, chatID, command)
-	return err
+	tag, err := r.db.Exec(ctx, query, chatID, command)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
 
 func (r *Repository) SetCommandEnabled(ctx context.Context, chatID int64, command string, enabled bool) error {
@@ -42,8 +44,15 @@ func (r *Repository) SetCommandEnabled(ctx context.Context, chatID int64, comman
 		WHERE chat_id = $2 AND command_name = $3
 	`
 
-	_, err := r.db.Exec(ctx, query, enabled, chatID, command)
-	return err
+	tag, err := r.db.Exec(ctx, query, enabled, chatID, command)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
 
 func (r *Repository) SetAllCommands(ctx context.Context, chatID int64, enabled bool) error {
@@ -53,10 +62,18 @@ func (r *Repository) SetAllCommands(ctx context.Context, chatID int64, enabled b
 		WHERE chat_id = $2
 	`
 
-	_, err := r.db.Exec(ctx, query, enabled, chatID)
-	return err
+	tag, err := r.db.Exec(ctx, query, enabled, chatID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
 
+// unsued
 func (r *Repository) GetCommands(ctx context.Context, chatID int64) ([]models.CommandConfig, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, chat_id, command_name, enabled

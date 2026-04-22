@@ -1,4 +1,3 @@
-// internal/repository/types.go
 package repository
 
 import "time"
@@ -8,7 +7,7 @@ type TelegramAdmin struct {
 	Username  string
 	FirstName string
 	LastName  string
-	Role      string // "creator" or "administrator"
+	Role      string // "creator" || "administrator"
 }
 
 type ChatConfig struct {

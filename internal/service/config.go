@@ -26,6 +26,7 @@ func (s *ConfigService) ensureAdmin(ctx context.Context, chatID, userID int64) e
 	return nil
 }
 
+// unsued
 func (s *ConfigService) SetSummary(ctx context.Context, chatID, userID int64, enabled bool) error {
 	if err := s.ensureAdmin(ctx, chatID, userID); err != nil {
 		return err
@@ -38,6 +39,7 @@ func (s *ConfigService) SetSummary(ctx context.Context, chatID, userID int64, en
 	return s.repo.SetSummary(ctx, chatID, enabled, userID)
 }
 
+// unsued
 func (s *ConfigService) SetDuplicateDM(ctx context.Context, chatID, userID int64, enabled bool) error {
 	if err := s.ensureAdmin(ctx, chatID, userID); err != nil {
 		return err
@@ -50,6 +52,7 @@ func (s *ConfigService) SetDuplicateDM(ctx context.Context, chatID, userID int64
 	return s.repo.SetDuplicateDM(ctx, chatID, enabled, userID)
 }
 
+// unsued
 func (s *ConfigService) ToggleCommand(ctx context.Context, chatID, userID int64, cmd string) error {
 	if err := s.ensureAdmin(ctx, chatID, userID); err != nil {
 		return err
@@ -62,13 +65,13 @@ func (s *ConfigService) ToggleCommand(ctx context.Context, chatID, userID int64,
 	return s.repo.ToggleCommand(ctx, chatID, cmd)
 }
 
-func (s *ConfigService) SetCommandEnabled(ctx context.Context, chatID, userID int64, cmd string, enabled bool) error {
+func (s *ConfigService) SetCommand(ctx context.Context, chatID, userID int64, cmd string, enabled bool) error {
 	if err := s.ensureAdmin(ctx, chatID, userID); err != nil {
-		return err
+		return fmt.Errorf("Set command error: %s", err)
 	}
 
 	if err := s.repo.EnsureDefaultCommands(ctx, chatID); err != nil {
-		return err
+		return fmt.Errorf("Set command error: %s", err)
 	}
 
 	return s.repo.SetCommandEnabled(ctx, chatID, cmd, enabled)
@@ -84,4 +87,8 @@ func (s *ConfigService) SetAllCommands(ctx context.Context, chatID, userID int64
 	}
 
 	return s.repo.SetAllCommands(ctx, chatID, enabled)
+}
+
+func (s *ConfigService) GetCommands(ctx context.Context, chatID int64) (map[string]bool, error) {
+	return s.repo.GetCommandConfigs(ctx, chatID)
 }
