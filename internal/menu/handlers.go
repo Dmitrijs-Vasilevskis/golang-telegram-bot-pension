@@ -2,194 +2,379 @@ package menu
 
 import (
 	"context"
-	"fmt"
+	"strings"
 
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/helpers"
-	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/service"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 )
 
-func (mm *MenuManager) handleMenuNavigation(ctx context.Context, b *bot.Bot, update *models.Update, parts []string) {
+func (mm *MenuManager) HandleCallback(ctx context.Context, b *bot.Bot, update *models.Update) {
 	callback := update.CallbackQuery
-	chatID := callback.Message.Message.Chat.ID
 	userID := callback.From.ID
-	messageId := callback.Message.Message.ID
 
-	if len(parts) < 2 {
+	state := mm.getOrCreateState(userID)
+
+	if !mm.trySetLoading(userID) {
+		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: callback.ID,
+			Text:            "⏳ Please wait...",
+		})
 		return
 	}
 
-	action := parts[1]
+	defer mm.setLoading(userID, false)
 
-	switch action {
-	case "back":
-		if len(parts) < 3 {
-			return
-		}
-		targetNode := parts[2]
+	action := callback.Data
 
-		if err := mm.updateMenu(ctx, b, int(chatID), int64(messageId), targetNode); err != nil {
-			fmt.Printf("Failed to update menu: %v\n", err)
-		}
-
-		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-			CallbackQueryID: callback.ID,
-		})
-	case "select_chat":
-		chatID := helpers.ParseChatID(parts[2])
-		mm.setUserChat(userID, chatID)
-
-		if err := mm.updateMenu(ctx, b, int(callback.Message.Message.Chat.ID), int64(messageId), "settings"); err != nil {
-			fmt.Printf("Failed to update menu: %v\n", err)
-		}
-
-		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-			CallbackQueryID: callback.ID,
-		})
-	case "settings":
-		mm.showChatList(ctx, b, chatID, int64(messageId), userID)
-
+	switch state.State {
+	case StateMain:
+		mm.handleMain(ctx, b, update, state, action)
+	case StateChats:
+		mm.handleChats(ctx, b, update, state, action)
+	case StateSettings:
+		mm.handleSettings(ctx, b, update, state, action)
+	case StateFeatures:
+		mm.handleFeatures(ctx, b, update, state, action)
+	case StateFeatureEdit:
+		mm.handleFeatureEdit(ctx, b, update, state, action)
+	case StateCommands:
+		mm.handleCommands(ctx, b, update, state, action)
+	case StateCommandEdit:
+		mm.handleCommandEdit(ctx, b, update, state, action)
 	default:
-		if err := mm.updateMenu(ctx, b, int(chatID), int64(messageId), action); err != nil {
-			fmt.Printf("Failed to update menu: %v\n", err)
-		}
-
-		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-			CallbackQueryID: callback.ID,
-		})
+		state.State = StateMain
+		mm.renderMain(ctx, b, state)
 	}
 }
 
-func (mm *MenuManager) handleFeatureAction(ctx context.Context, b *bot.Bot, update *models.Update, parts []string) {
-	callback := update.CallbackQuery
-	userID := callback.From.ID
-	selectedChatID := mm.getUserChat(userID)
+func (mm *MenuManager) HandleStart(ctx context.Context, b *bot.Bot, update *models.Update) {
+	user := update.Message.From
+	chat := update.Message.Chat
 
-	// if selectedChatID == 0 {
-	// 	return
-	// }
+	state := mm.resetState(user.ID)
+	state.DMChannelID = chat.ID
 
-	if len(parts) < 3 {
+	msg, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      chat.ID,
+		Text:        "*Main menu*",
+		ParseMode:   models.ParseModeMarkdown,
+		ReplyMarkup: mm.mainKeyboard(),
+	})
+
+	if err != nil {
 		return
 	}
 
-	dmChatID := callback.Message.Message.Chat.ID
-	messageID := callback.Message.Message.ID
+	state.MessageId = msg.ID
+	state.State = StateMain
+}
 
-	cfg := service.NewConfigService(mm.app.Repository)
+func (mm *MenuManager) handleMain(ctx context.Context, b *bot.Bot, update *models.Update, state *MenuState, action string) {
+	callback := update.CallbackQuery
+	parts := strings.Split(action, ":")
 
-	feature := parts[1]
-	action := parts[2]
+	if len(parts) < 1 {
+		return
+	}
 
-	println("handleFeatureAction parts[1]", parts[1])
-	println("handleFeatureAction parts[2]", parts[2])
+	switch parts[0] {
+	case "nav":
+		switch parts[1] {
+		case "chats":
+			state.State = StateChats
 
-	switch feature {
-	case "commands":
-		switch action {
-		case "enable_all":
-			_ = cfg.SetAllCommands(ctx, selectedChatID, userID, true)
-			_ = mm.updateMenu(ctx, b, int(dmChatID), int64(messageID), "commands")
-		case "disable_all":
-			_ = cfg.SetAllCommands(ctx, selectedChatID, userID, false)
-			_ = mm.updateMenu(ctx, b, int(dmChatID), int64(messageID), "commands")
-		default:
-			// action is command name: features:commands:<cmd>
-			println(">> default showCommandActionKeyboard:", action)
-			mm.showCommandActionKeyboard(ctx, b, dmChatID, messageID, action)
-		}
-
-	case "command":
-		// features:command:<cmd>:enable|disable
-		if len(parts) < 4 {
+			mm.renderChats(ctx, b, state)
+			mm.answerCallback(ctx, b, callback.ID)
 			return
 		}
+	}
+
+	mm.renderMain(ctx, b, state)
+	mm.answerCallback(ctx, b, callback.ID)
+}
+
+func (mm *MenuManager) handleChats(ctx context.Context, b *bot.Bot, update *models.Update, state *MenuState, action string) {
+	callback := update.CallbackQuery
+	parts := strings.Split(action, ":")
+
+	if len(parts) < 1 {
+		return
+	}
+
+	switch parts[0] {
+	case "chat":
+		if len(parts) < 2 {
+			return
+		}
+
+		switch parts[1] {
+		case "select_chat":
+			chatID := helpers.ParseChatID(parts[2])
+
+			if chatID == 0 {
+				break
+			}
+
+			state.ChatID = chatID
+			state.State = StateSettings
+
+			mm.renderSettings(ctx, b, state)
+			mm.answerCallback(ctx, b, callback.ID)
+			return
+		}
+	case "nav":
+		if len(parts) < 2 {
+			return
+		}
+
+		switch parts[2] {
+		case "main":
+			state.State = StateMain
+
+			mm.renderMain(ctx, b, state)
+			mm.answerCallback(ctx, b, callback.ID)
+			return
+		}
+	}
+
+	mm.renderChats(ctx, b, state)
+	mm.answerCallback(ctx, b, callback.ID)
+}
+
+func (mm *MenuManager) handleSettings(ctx context.Context, b *bot.Bot, update *models.Update, state *MenuState, action string) {
+	callback := update.CallbackQuery
+	parts := strings.Split(action, ":")
+
+	if len(parts) < 1 {
+		return
+	}
+
+	switch parts[1] {
+	case "features":
+		state.State = StateFeatures
+
+		mm.renderFeatures(ctx, b, state)
+		mm.answerCallback(ctx, b, callback.ID)
+		return
+	case "commands":
+		state.State = StateCommands
+
+		mm.renderCommands(ctx, b, state)
+		mm.answerCallback(ctx, b, callback.ID)
+		return
+	case "chats":
+		state.State = StateChats
+
+		mm.renderChats(ctx, b, state)
+		mm.answerCallback(ctx, b, callback.ID)
+		return
+	}
+
+	mm.renderSettings(ctx, b, state)
+	mm.answerCallback(ctx, b, callback.ID)
+}
+
+func (mm *MenuManager) handleFeatures(ctx context.Context, b *bot.Bot, update *models.Update, state *MenuState, action string) {
+	callback := update.CallbackQuery
+	parts := strings.Split(action, ":")
+
+	if len(parts) < 1 {
+		return
+	}
+
+	switch parts[1] {
+	case "features":
+
+		switch parts[2] {
+		case "select":
+			feature := parts[3]
+			state.State = StateFeatureEdit
+			state.Data["feature"] = feature
+
+			if _, ok := mm.commandManager.GetByKey(feature); !ok {
+				break
+			}
+
+			mm.renderFeatureEdit(ctx, b, state)
+			mm.answerCallback(ctx, b, callback.ID)
+			return
+		}
+
+		mm.renderFeatures(ctx, b, state)
+		mm.answerCallback(ctx, b, callback.ID)
+		return
+	case "chats":
+		state.State = StateChats
+
+		mm.renderChats(ctx, b, state)
+		mm.answerCallback(ctx, b, callback.ID)
+		return
+
+	case "settings":
+		state.State = StateSettings
+
+		mm.renderSettings(ctx, b, state)
+		mm.answerCallback(ctx, b, callback.ID)
+		return
+	}
+
+	mm.renderFeatures(ctx, b, state)
+	mm.answerCallback(ctx, b, callback.ID)
+}
+
+func (mm *MenuManager) handleFeatureEdit(ctx context.Context, b *bot.Bot, update *models.Update, state *MenuState, action string) {
+	callback := update.CallbackQuery
+	parts := strings.Split(action, ":")
+
+	if len(parts) < 1 {
+		return
+	}
+
+	switch parts[0] {
+	case "feature":
+		if len(parts) < 2 {
+			break
+		}
+		cmdName := parts[1]
+		actionType := parts[2]
+
+		switch actionType {
+		case "enable":
+			_ = mm.chatService.SetFeature(ctx, state.ChatID, state.UserID, cmdName, true)
+		case "disable":
+			_ = mm.chatService.SetFeature(ctx, state.ChatID, state.UserID, cmdName, false)
+		}
+
+		state.Data["feature"] = cmdName
+
+		mm.renderFeatureEdit(ctx, b, state)
+		mm.answerCallback(ctx, b, callback.ID)
+		return
+	case "nav":
+		switch parts[1] {
+		case "features":
+			state.State = StateFeatures
+
+			mm.renderFeatures(ctx, b, state)
+			mm.answerCallback(ctx, b, callback.ID)
+			return
+		case "main":
+			state.State = StateMain
+
+			mm.renderMain(ctx, b, state)
+			mm.answerCallback(ctx, b, callback.ID)
+			return
+		}
+	}
+
+	mm.renderFeatureEdit(ctx, b, state)
+	mm.answerCallback(ctx, b, callback.ID)
+}
+
+func (mm *MenuManager) handleCommands(ctx context.Context, b *bot.Bot, update *models.Update, state *MenuState, action string) {
+	callback := update.CallbackQuery
+	parts := strings.Split(action, ":")
+
+	if len(parts) < 1 {
+		return
+	}
+
+	switch parts[0] {
+	case "nav":
+		switch parts[1] {
+		case "commands":
+			if len(parts) < 2 {
+				break
+			}
+			switch parts[2] {
+			case "enable_all":
+				_ = mm.configService.SetAllCommands(ctx, state.ChatID, state.UserID, true)
+			case "disable_all":
+				_ = mm.configService.SetAllCommands(ctx, state.ChatID, state.UserID, false)
+			case "select":
+				if len(parts) < 3 {
+					break
+				}
+
+				cmd := parts[3]
+
+				if _, ok := mm.commandManager.GetByKey(cmd); !ok {
+					break
+				}
+
+				state.State = StateCommandEdit
+				state.Data["command"] = cmd
+
+				mm.renderCommandEdit(ctx, b, state)
+				mm.answerCallback(ctx, b, callback.ID)
+				return
+			}
+		case "back":
+			if len(parts) < 2 {
+				break
+			}
+			switch parts[2] {
+			case "settings":
+				state.State = StateSettings
+
+				mm.renderSettings(ctx, b, state)
+				mm.answerCallback(ctx, b, callback.ID)
+				return
+			}
+		}
+	}
+
+	mm.renderCommands(ctx, b, state)
+	mm.answerCallback(ctx, b, callback.ID)
+}
+
+func (mm *MenuManager) handleCommandEdit(ctx context.Context, b *bot.Bot, update *models.Update, state *MenuState, action string) {
+	callback := update.CallbackQuery
+	parts := strings.Split(action, ":")
+
+	if len(parts) < 1 {
+		return
+	}
+
+	switch parts[0] {
+	case "features":
+		if parts[1] != "command" {
+			break
+		}
+
 		cmd := parts[2]
-		cmdAction := parts[3]
-		switch cmdAction {
+		actionType := parts[3]
+
+		switch actionType {
 		case "enable":
-			_ = cfg.SetCommandEnabled(ctx, selectedChatID, userID, cmd, true)
+			_ = mm.configService.SetCommand(ctx, state.ChatID, state.UserID, cmd, true)
 		case "disable":
-			_ = cfg.SetCommandEnabled(ctx, selectedChatID, userID, cmd, false)
+			_ = mm.configService.SetCommand(ctx, state.ChatID, state.UserID, cmd, false)
 		}
-		mm.showCommandActionKeyboard(ctx, b, dmChatID, messageID, cmd)
 
-	case "summary":
-		switch action {
-		case "enable":
-			_ = cfg.SetSummary(ctx, selectedChatID, userID, true)
-		case "disable":
-			_ = cfg.SetSummary(ctx, selectedChatID, userID, false)
-		}
-		_ = mm.updateMenu(ctx, b, int(dmChatID), int64(messageID), "summary")
+		state.Data["command"] = cmd
 
-	case "duplicate_dm":
-		switch action {
-		case "enable":
-			_ = cfg.SetDuplicateDM(ctx, selectedChatID, userID, true)
-		case "disable":
-			_ = cfg.SetDuplicateDM(ctx, selectedChatID, userID, false)
-		}
-		_ = mm.updateMenu(ctx, b, int(dmChatID), int64(messageID), "duplicate_dm")
-	}
-
-	b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-		CallbackQueryID: callback.ID,
-	})
-}
-
-func (mm *MenuManager) showCommandActionKeyboard(ctx context.Context, b *bot.Bot, dmChatID int64, messageID int, commandName string) {
-	println(">> showCommandActionKeyboard:", commandName)
-	keyboard := mm.actionKeyboard(commandName)
-
-	_, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
-		ChatID:      dmChatID,
-		MessageID:   int(messageID),
-		ParseMode:   models.ParseModeMarkdown,
-		Text:        fmt.Sprintf("*Command:* `/%s`\n\nChoose status:", commandName),
-		ReplyMarkup: keyboard,
-	})
-	if err != nil {
-		fmt.Printf("Failed to show command action keyboard: %v\n", err)
-	}
-}
-
-func (mm *MenuManager) showChatList(ctx context.Context, b *bot.Bot, chatID, messageID, userID int64) {
-	chats, err := mm.app.Services.Chat.GetUserChats(ctx, userID)
-	if err != nil {
-		fmt.Printf("Failed to get user chats: %v\n", err)
-		mm.updateMenu(ctx, b, int(chatID), messageID, "main")
+		mm.renderCommandEdit(ctx, b, state)
+		mm.answerCallback(ctx, b, callback.ID)
 		return
-	}
+	case "nav":
+		switch parts[1] {
+		case "commands":
+			state.State = StateCommands
 
-	if len(chats) == 0 {
-		keyboard := &models.InlineKeyboardMarkup{
-			InlineKeyboard: [][]models.InlineKeyboardButton{
-				{
-					{Text: "🔙 Back", CallbackData: "menu:back:main"},
-				},
-			},
+			mm.renderCommands(ctx, b, state)
+			mm.answerCallback(ctx, b, callback.ID)
+			return
+		case "main":
+			state.State = StateMain
+
+			mm.renderMain(ctx, b, state)
+			mm.answerCallback(ctx, b, callback.ID)
+			return
 		}
-
-		b.EditMessageText(ctx, &bot.EditMessageTextParams{
-			ChatID:      chatID,
-			MessageID:   int(messageID),
-			Text:        "You don't have any chats where you are an administrator.\n\nAdd the bot to a group and make me an admin to configure settings.",
-			ParseMode:   models.ParseModeMarkdown,
-			ReplyMarkup: keyboard,
-		})
-		return
 	}
 
-	node, _ := mm.GetNode("chats")
-	keyboard := mm.chatsKeyboard(chats)
-
-	b.EditMessageText(ctx, &bot.EditMessageTextParams{
-		ChatID:      chatID,
-		MessageID:   int(messageID),
-		Text:        node.Text,
-		ParseMode:   models.ParseModeMarkdown,
-		ReplyMarkup: keyboard,
-	})
+	mm.renderCommandEdit(ctx, b, state)
+	mm.answerCallback(ctx, b, callback.ID)
 }

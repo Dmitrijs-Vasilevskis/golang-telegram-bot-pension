@@ -4,9 +4,22 @@ import (
 	"context"
 	"sync"
 
-	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/app"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/command"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/service"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+)
+
+type State string
+
+const (
+	StateMain        State = "main"
+	StateChats       State = "chats"
+	StateSettings    State = "settings"
+	StateFeatures    State = "features"
+	StateFeatureEdit State = "feature_edit"
+	StateCommands    State = "commands"
+	StateCommandEdit State = "command_edit"
 )
 
 type MenuNode struct {
@@ -20,15 +33,22 @@ type MenuNode struct {
 type MenuState struct {
 	UserID      int64
 	ChatID      int64
+	DMChannelID int64
+	State       State
+	MessageId   int
+	Loading     bool
+	LastAction  string
 	CurrentNode string
 	Data        map[string]interface{}
 }
 
 type MenuManager struct {
-	nodes     map[string]*MenuNode
-	userState map[int64]*MenuState
-	mu        sync.RWMutex
-	app       *app.App
+	nodes          map[string]*MenuNode
+	userState      map[int64]*MenuState
+	commandManager command.CommandManager
+	mu             sync.RWMutex
+	configService  service.ConfigService
+	chatService    service.ChatService
 }
 
 type FeatureHandler interface {
