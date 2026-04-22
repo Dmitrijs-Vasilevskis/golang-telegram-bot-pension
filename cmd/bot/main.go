@@ -14,6 +14,7 @@ import (
 	embedHandler "github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/handlers/embed"
 	messageHandler "github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/handlers/messages"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/menu"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/middleware"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/repository"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/router"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/service"
@@ -57,6 +58,8 @@ func main() {
 		Chat:   *service.NewChatService(repo, botClient),
 	}
 
+	mw := middleware.New(services.Chat)
+
 	app := app.New(db, services)
 	menuManager := menu.NewMenuManager(app)
 
@@ -65,18 +68,25 @@ func main() {
 	r.Register("instagram", embedHandler.Instagram)
 	r.Register("tiktok", embedHandler.TikTok)
 
+	botClient.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact,
+		func(ctx context.Context, bot *bot.Bot, update *models.Update) {
+			menuManager.HandleStart(ctx, bot, update)
+		})
+
 	botClient.RegisterHandlerMatchFunc(
 		func(update *models.Update) bool {
-			return update != nil && update.Message != nil
+			return update != nil &&
+				update.Message != nil &&
+				update.Message.Chat.Type != models.ChatTypePrivate
 		},
-		dispatcher.MainHandler(app, r))
+		dispatcher.MainHandler(app, r, mw))
 
 	botClient.RegisterHandlerMatchFunc(
 		func(update *models.Update) bool {
 			return update != nil && update.CallbackQuery != nil
 		},
 		func(ctx context.Context, b *bot.Bot, update *models.Update) {
-			menuManager.HandleCallback(ctx, b, update, app)
+			menuManager.HandleCallback(ctx, b, update)
 		})
 
 	botClient.RegisterHandlerMatchFunc(func(update *models.Update) bool {
