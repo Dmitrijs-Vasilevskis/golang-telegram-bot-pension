@@ -38,7 +38,7 @@ func Summary(ctx context.Context, b *bot.Bot, update *models.Update, app *app.Ap
 
 	geminiService := service.NewGeminiService()
 
-	messages, err := app.MessageRepository.GetLastMessages(ctx, chatID, limit)
+	messages, err := app.Repository.GetLastMessages(ctx, chatID, limit)
 	if err != nil {
 		fmt.Println("[WARN] Failed to get messages:", err)
 		utils.Reply(ctx, b, update, "Failed to retrieve messages.")
