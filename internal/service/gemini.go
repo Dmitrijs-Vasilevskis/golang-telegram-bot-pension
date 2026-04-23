@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"log/slog"
 	"time"
 
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/helpers"
@@ -99,7 +100,7 @@ func getBaseUrl() (string, error) {
 }
 
 func (s *GeminiService) GenResponse(ctx context.Context, prompt string) (string, error) {
-	fmt.Println("[INFO] Starting GenResponse")
+	slog.Info("Starting GenResponse")
 
 	baseURL, err := getBaseUrl()
 	if err != nil {
@@ -239,12 +240,12 @@ func (s *GeminiService) executeRequest(ctx context.Context, method string, url s
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return "", fmt.Errorf("failed to unmarshal Gemini response: %w", err)
 	}
-	fmt.Println("[INFO] Response JSON parsed")
+	slog.Info("Response JSON parsed")
 
 	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
 		return "", fmt.Errorf("empty response from Gemini")
 	}
 
-	fmt.Println("[INFO] Returning final text from Gemini")
+	slog.Info("Returning final text from Gemini")
 	return result.Candidates[0].Content.Parts[0].Text, nil
 }
