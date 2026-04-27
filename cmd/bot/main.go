@@ -77,6 +77,18 @@ func main() {
 		func(update *models.Update) bool {
 			return update != nil &&
 				update.Message != nil &&
+				update.Message.Chat.Type == models.ChatTypePrivate &&
+				update.Message.Text != "/start"
+		},
+		func(ctx context.Context, b *bot.Bot, update *models.Update) {
+			menuManager.HandleMessage(ctx, b, update)
+		},
+	)
+
+	botClient.RegisterHandlerMatchFunc(
+		func(update *models.Update) bool {
+			return update != nil &&
+				update.Message != nil &&
 				update.Message.Chat.Type != models.ChatTypePrivate
 		},
 		dispatcher.MainHandler(app, r, mw))

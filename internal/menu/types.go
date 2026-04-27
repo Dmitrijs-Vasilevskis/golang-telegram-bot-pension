@@ -13,13 +13,15 @@ import (
 type State string
 
 const (
-	StateMain        State = "main"
-	StateChats       State = "chats"
-	StateSettings    State = "settings"
-	StateFeatures    State = "features"
-	StateFeatureEdit State = "feature_edit"
-	StateCommands    State = "commands"
-	StateCommandEdit State = "command_edit"
+	StateMain             State = "main"
+	StateChats            State = "chats"
+	StateChatActions      State = "chat_actions"
+	StateSettings         State = "settings"
+	StateFeatures         State = "features"
+	StateFeatureEdit      State = "feature_edit"
+	StateCommands         State = "commands"
+	StateCommandEdit      State = "command_edit"
+	StateDuplicateMessage State = "duplicate_dm"
 )
 
 type MenuNode struct {

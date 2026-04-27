@@ -32,6 +32,10 @@ func (mm *MenuManager) HandleCallback(ctx context.Context, b *bot.Bot, update *m
 		mm.handleMain(ctx, b, update, state, action)
 	case StateChats:
 		mm.handleChats(ctx, b, update, state, action)
+	case StateChatActions:
+		mm.handleChatActions(ctx, b, update, state, action)
+	case StateDuplicateMessage:
+		mm.handleDuplicateMode(ctx, b, update, state, action)
 	case StateSettings:
 		mm.handleSettings(ctx, b, update, state, action)
 	case StateFeatures:
@@ -68,6 +72,20 @@ func (mm *MenuManager) HandleStart(ctx context.Context, b *bot.Bot, update *mode
 
 	state.MessageId = msg.ID
 	state.State = StateMain
+}
+
+func (mm *MenuManager) HandleMessage(ctx context.Context, b *bot.Bot, update *models.Update) {
+	if update.Message == nil {
+		return
+	}
+
+	userID := update.Message.From.ID
+	state := mm.getOrCreateState(userID)
+
+	switch state.State {
+	case StateDuplicateMessage:
+		mm.handleDuplicateMessage(ctx, b, update, state)
+	}
 }
 
 func (mm *MenuManager) handleMain(ctx context.Context, b *bot.Bot, update *models.Update, state *MenuState, action string) {
@@ -117,9 +135,9 @@ func (mm *MenuManager) handleChats(ctx context.Context, b *bot.Bot, update *mode
 			}
 
 			state.ChatID = chatID
-			state.State = StateSettings
+			state.State = StateChatActions
 
-			mm.renderSettings(ctx, b, state)
+			mm.renderChatActions(ctx, b, state)
 			mm.answerCallback(ctx, b, callback.ID)
 			return
 		}
@@ -140,6 +158,39 @@ func (mm *MenuManager) handleChats(ctx context.Context, b *bot.Bot, update *mode
 
 	mm.renderChats(ctx, b, state)
 	mm.answerCallback(ctx, b, callback.ID)
+}
+
+func (mm *MenuManager) handleChatActions(ctx context.Context, b *bot.Bot, update *models.Update, state *MenuState, action string) {
+	callback := update.CallbackQuery
+	parts := strings.Split(action, ":")
+
+	if len(parts) < 1 {
+		return
+	}
+
+	switch parts[1] {
+	case "settings":
+		state.State = StateSettings
+
+		mm.renderSettings(ctx, b, state)
+		mm.answerCallback(ctx, b, callback.ID)
+		return
+	case "action":
+		switch parts[2] {
+		case "duplicate_dm":
+			state.State = StateDuplicateMessage
+
+			mm.renderDuplicateAction(ctx, b, state)
+			mm.answerCallback(ctx, b, callback.ID)
+			return
+		}
+	case "chats":
+		state.State = StateChats
+
+		mm.renderChats(ctx, b, state)
+		mm.answerCallback(ctx, b, callback.ID)
+		return
+	}
 }
 
 func (mm *MenuManager) handleSettings(ctx context.Context, b *bot.Bot, update *models.Update, state *MenuState, action string) {
@@ -163,10 +214,10 @@ func (mm *MenuManager) handleSettings(ctx context.Context, b *bot.Bot, update *m
 		mm.renderCommands(ctx, b, state)
 		mm.answerCallback(ctx, b, callback.ID)
 		return
-	case "chats":
-		state.State = StateChats
+	case "chat_selected":
+		state.State = StateChatActions
 
-		mm.renderChats(ctx, b, state)
+		mm.renderChatActions(ctx, b, state)
 		mm.answerCallback(ctx, b, callback.ID)
 		return
 	}
@@ -376,5 +427,74 @@ func (mm *MenuManager) handleCommandEdit(ctx context.Context, b *bot.Bot, update
 	}
 
 	mm.renderCommandEdit(ctx, b, state)
+	mm.answerCallback(ctx, b, callback.ID)
+}
+
+func (mm *MenuManager) handleDuplicateMessage(ctx context.Context, b *bot.Bot, update *models.Update, state *MenuState) {
+	msg := update.Message
+
+	if msg == nil {
+		return
+	}
+
+	if state.ChatID == 0 {
+		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: state.DMChannelID,
+			Text:   "❌ The chat is not selected",
+		})
+		return
+	}
+
+	enabled, _ := mm.chatService.IsDuplicateDMEnabled(ctx, state.ChatID)
+
+	if !enabled {
+		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: state.DMChannelID,
+			Text:   "❌ The duplicate feature is not enabled",
+		})
+		return
+	}
+
+	_, err := b.CopyMessage(ctx, &bot.CopyMessageParams{
+		ChatID:     state.ChatID,
+		FromChatID: msg.Chat.ID,
+		MessageID:  msg.ID,
+	})
+
+	if err != nil {
+		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: state.DMChannelID,
+			Text:   "❌ Failed to duplicate message",
+		})
+		return
+	}
+}
+
+func (mm *MenuManager) handleDuplicateMode(ctx context.Context, b *bot.Bot, update *models.Update, state *MenuState, action string) {
+	callback := update.CallbackQuery
+	parts := strings.Split(action, ":")
+
+	if len(parts) < 1 {
+		return
+	}
+
+	switch parts[0] {
+	case "nav":
+		switch parts[1] {
+		case "main":
+			state.State = StateMain
+
+			mm.renderMain(ctx, b, state)
+			mm.answerCallback(ctx, b, callback.ID)
+			return
+		case "chat_selected":
+			state.State = StateChatActions
+
+			mm.renderChatActions(ctx, b, state)
+			mm.answerCallback(ctx, b, callback.ID)
+			return
+		}
+	}
+
 	mm.answerCallback(ctx, b, callback.ID)
 }

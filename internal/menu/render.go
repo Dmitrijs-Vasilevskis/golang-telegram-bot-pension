@@ -137,6 +137,21 @@ func (mm *MenuManager) renderChats(ctx context.Context, b *bot.Bot, state *MenuS
 	}
 }
 
+func (mm *MenuManager) renderChatActions(ctx context.Context, b *bot.Bot, state *MenuState) {
+	keyboard := mm.buildChatActionsBeyboard()
+
+	_, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
+		ChatID:      state.DMChannelID,
+		MessageID:   state.MessageId,
+		ParseMode:   models.ParseModeMarkdown,
+		Text:        "Select an action:",
+		ReplyMarkup: keyboard,
+	})
+	if err != nil {
+		fmt.Printf("Failed to render a setting keyboard: %v\n", err)
+	}
+}
+
 func (mm *MenuManager) renderSettings(ctx context.Context, b *bot.Bot, state *MenuState) {
 	keyboard := mm.buildSettingKeyboard()
 
@@ -149,5 +164,21 @@ func (mm *MenuManager) renderSettings(ctx context.Context, b *bot.Bot, state *Me
 	})
 	if err != nil {
 		fmt.Printf("Failed to render a setting keyboard: %v\n", err)
+	}
+}
+
+func (mm *MenuManager) renderDuplicateAction(ctx context.Context, b *bot.Bot, state *MenuState) {
+	keyboard := mm.buildDuplicateActionKeyboard()
+
+	_, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
+		ChatID:      state.DMChannelID,
+		MessageID:   state.MessageId,
+		ParseMode:   models.ParseModeMarkdownV1,
+		Text:        "✉️ Send a message to duplicate.\n\nType /cancel to abort.",
+		ReplyMarkup: keyboard,
+	})
+
+	if err != nil {
+		fmt.Printf("Failed to render a keyboard: %v\n", err)
 	}
 }

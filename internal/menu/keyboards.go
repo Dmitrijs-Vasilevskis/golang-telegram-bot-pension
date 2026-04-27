@@ -56,6 +56,20 @@ func (mm *MenuManager) buildSettingKeyboard() *models.InlineKeyboardMarkup {
 				{Text: "🎮 Commands", CallbackData: "nav:commands"},
 			},
 			{
+				{Text: "🔙 Return", CallbackData: "nav:chat_selected"},
+			},
+		},
+	}
+}
+
+func (mm *MenuManager) buildChatActionsBeyboard() *models.InlineKeyboardMarkup {
+	return &models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{
+				{Text: "⚙️ Chat configurations", CallbackData: "nav:settings"},
+				{Text: "Duplicate message", CallbackData: "nav:action:duplicate_dm"},
+			},
+			{
 				{Text: "🔙 Return", CallbackData: "nav:chats"},
 			},
 		},
@@ -142,4 +156,15 @@ func (mm *MenuManager) buildChatsKeyboard(ctx context.Context, state MenuState) 
 	})
 
 	return &models.InlineKeyboardMarkup{InlineKeyboard: buttons}
+}
+
+func (mm *MenuManager) buildDuplicateActionKeyboard() *models.InlineKeyboardMarkup {
+	return &models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{
+				{Text: "🔙 Return", CallbackData: "nav:chat_selected"},
+				{Text: "🏠 Main Menu", CallbackData: "nav:main"},
+			},
+		},
+	}
 }
