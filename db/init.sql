@@ -67,6 +67,12 @@ CREATE TABLE command_configs (
     FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_messages_chat_created_at
+    ON messages (chat_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_chat_admins_user_id
+    ON chat_admins (user_id);
+
 -- Maintain updated_at automatically (Postgres replacement for ON UPDATE)
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$
