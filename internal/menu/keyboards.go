@@ -153,7 +153,7 @@ func (mm *MenuManager) buildChatsKeyboard(ctx context.Context, state *MenuState)
 	}
 
 	buttons = append(buttons, []models.InlineKeyboardButton{
-		{Text: "🏠 Main Menu", CallbackData: "nav:back:main"},
+		{Text: "🏠 Main Menu", CallbackData: "nav:main"},
 	})
 
 	return &models.InlineKeyboardMarkup{InlineKeyboard: buttons}

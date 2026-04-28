@@ -36,5 +36,7 @@ func (mm *MenuManager) TransitionTo(
 		mm.renderCommands(ctx, b, state)
 	case StateCommandEdit:
 		mm.renderCommandEdit(ctx, b, state)
+	default:
+		mm.renderMain(ctx, b, state)
 	}
 }
