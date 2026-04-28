@@ -123,7 +123,7 @@ func (mm *MenuManager) renderMain(ctx context.Context, b *bot.Bot, state *MenuSt
 }
 
 func (mm *MenuManager) renderChats(ctx context.Context, b *bot.Bot, state *MenuState) {
-	keyboard := mm.buildChatsKeyboard(ctx, *state)
+	keyboard := mm.buildChatsKeyboard(ctx, state)
 
 	_, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:      state.DMChannelID,
@@ -174,7 +174,7 @@ func (mm *MenuManager) renderDuplicateAction(ctx context.Context, b *bot.Bot, st
 		ChatID:      state.DMChannelID,
 		MessageID:   state.MessageId,
 		ParseMode:   models.ParseModeMarkdownV1,
-		Text:        "✉️ Send a message to duplicate.\n\nType /cancel to abort.",
+		Text:        "✉️ Send a message to duplicate.\n\nUse /cancel, Return, or Main Menu to abort.",
 		ReplyMarkup: keyboard,
 	})
 

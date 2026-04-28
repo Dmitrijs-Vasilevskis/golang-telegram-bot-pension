@@ -22,8 +22,8 @@ func (mm *MenuManager) actionKeyboard(feature string) *models.InlineKeyboardMark
 	return &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
-				{Text: "✅ Enable", CallbackData: fmt.Sprintf("features:command:%s:enable", feature)},
-				{Text: "❌ Disable", CallbackData: fmt.Sprintf("features:command:%s:disable", feature)},
+				{Text: "✅ Enable", CallbackData: fmt.Sprintf("cfg:command:%s:enable", feature)},
+				{Text: "❌ Disable", CallbackData: fmt.Sprintf("cfg:command:%s:disable", feature)},
 			},
 			{
 				{Text: "🔙 Return", CallbackData: "nav:commands"},
@@ -37,8 +37,8 @@ func (mm *MenuManager) buildFeatureEditKeyboard(feature string) *models.InlineKe
 	return &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
-				{Text: "✅ Enable", CallbackData: fmt.Sprintf("feature:%s:enable", feature)},
-				{Text: "❌ Disable", CallbackData: fmt.Sprintf("feature:%s:disable", feature)},
+				{Text: "✅ Enable", CallbackData: fmt.Sprintf("cfg:feature:%s:enable", feature)},
+				{Text: "❌ Disable", CallbackData: fmt.Sprintf("cfg:feature:%s:disable", feature)},
 			},
 			{
 				{Text: "🔙 Return", CallbackData: "nav:features"},
@@ -56,7 +56,7 @@ func (mm *MenuManager) buildSettingKeyboard() *models.InlineKeyboardMarkup {
 				{Text: "🎮 Commands", CallbackData: "nav:commands"},
 			},
 			{
-				{Text: "🔙 Return", CallbackData: "nav:chat_selected"},
+				{Text: "🔙 Return", CallbackData: "nav:chat:selected"},
 			},
 		},
 	}
@@ -67,7 +67,7 @@ func (mm *MenuManager) buildChatActionsBeyboard() *models.InlineKeyboardMarkup {
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
 				{Text: "⚙️ Chat configurations", CallbackData: "nav:settings"},
-				{Text: "Duplicate message", CallbackData: "nav:action:duplicate_dm"},
+				{Text: "Duplicate message", CallbackData: "nav:feature:duplicate_dm"},
 			},
 			{
 				{Text: "🔙 Return", CallbackData: "nav:chats"},
@@ -106,8 +106,8 @@ func (mm *MenuManager) buildCommandsKeyboard(ctx context.Context, state *MenuSta
 	var buttons [][]models.InlineKeyboardButton
 
 	buttons = append(buttons, []models.InlineKeyboardButton{
-		{Text: "✅ Enable All", CallbackData: "nav:commands:enable_all"},
-		{Text: "❌ Disable All", CallbackData: "nav:commands:disable_all"},
+		{Text: "✅ Enable All", CallbackData: "nav:commands:all:enable"},
+		{Text: "❌ Disable All", CallbackData: "nav:commands:all:disable"},
 	})
 
 	for _, cmd := range commands {
@@ -127,13 +127,14 @@ func (mm *MenuManager) buildCommandsKeyboard(ctx context.Context, state *MenuSta
 	}
 
 	buttons = append(buttons, []models.InlineKeyboardButton{
-		{Text: "🔙 Return to Settings", CallbackData: "nav:back:settings"},
+		{Text: "🔄 Change Chat", CallbackData: "nav:chats"},
+		{Text: "🔙 Return to Settings", CallbackData: "nav:settings"},
 	})
 
 	return &models.InlineKeyboardMarkup{InlineKeyboard: buttons}
 }
 
-func (mm *MenuManager) buildChatsKeyboard(ctx context.Context, state MenuState) *models.InlineKeyboardMarkup {
+func (mm *MenuManager) buildChatsKeyboard(ctx context.Context, state *MenuState) *models.InlineKeyboardMarkup {
 	chats, err := mm.chatService.GetUserChats(ctx, state.UserID)
 	if err != nil {
 		fmt.Printf("Failed to get user chats: %v\n", err)
@@ -146,7 +147,7 @@ func (mm *MenuManager) buildChatsKeyboard(ctx context.Context, state MenuState) 
 		buttons = append(buttons, []models.InlineKeyboardButton{
 			{
 				Text:         chat.Title,
-				CallbackData: fmt.Sprintf("chat:select_chat:%d", chat.ID),
+				CallbackData: fmt.Sprintf("nav:chat:select:%d", chat.ID),
 			},
 		})
 	}
@@ -162,7 +163,7 @@ func (mm *MenuManager) buildDuplicateActionKeyboard() *models.InlineKeyboardMark
 	return &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
-				{Text: "🔙 Return", CallbackData: "nav:chat_selected"},
+				{Text: "🔙 Return", CallbackData: "nav:chat:selected"},
 				{Text: "🏠 Main Menu", CallbackData: "nav:main"},
 			},
 		},
