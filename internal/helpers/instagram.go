@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	kkInstHost = "www.kkinstagram.com"
+	kkInstHost = "www.kkclip.com"
 	reelPath   = "/reel/%s/"
 )
 
