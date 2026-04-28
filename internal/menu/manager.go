@@ -10,12 +10,16 @@ import (
 
 func NewMenuManager(app *app.App) *MenuManager {
 	mm := &MenuManager{
-		nodes:          make(map[string]*MenuNode),
 		userState:      make(map[int64]*MenuState),
+		router:         NewCallbackRouter(),
+		messageRouter:  NewMessagerRouter(),
 		commandManager: *command.New(),
 		configService:  app.Services.Config,
 		chatService:    app.Services.Chat,
 	}
+
+	mm.registerCallbackRoutes()
+	mm.registerMessageRoutes()
 
 	return mm
 }

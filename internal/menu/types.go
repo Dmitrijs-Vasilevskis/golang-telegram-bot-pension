@@ -37,17 +37,18 @@ type MenuState struct {
 	ChatID      int64
 	DMChannelID int64
 	State       State
+	PrevState   State
 	MessageId   int
 	Loading     bool
-	LastAction  string
 	CurrentNode string
 	Data        map[string]interface{}
 }
 
 type MenuManager struct {
-	nodes          map[string]*MenuNode
 	userState      map[int64]*MenuState
 	commandManager command.CommandManager
+	router         *CallbackRouter
+	messageRouter  *MessageRouter
 	mu             sync.RWMutex
 	configService  service.ConfigService
 	chatService    service.ChatService
