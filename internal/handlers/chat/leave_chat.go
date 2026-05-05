@@ -43,7 +43,7 @@ func HandleLeaveChat(ctx context.Context, b *bot.Bot, update *models.Update, db 
 	log.Printf("Bot leaving chat %d, cleaning up messages...", chatID)
 
 	err := database.WithTransaction(ctx, db, func(tx pgx.Tx) error {
-		messageRepo := repository.NewMessageRepository(tx)
+		messageRepo := repository.NewRepository(tx)
 
 		deletedCount, err := messageRepo.DeleteByChatID(ctx, chatID)
 		if err != nil {
