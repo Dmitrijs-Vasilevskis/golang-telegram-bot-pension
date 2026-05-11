@@ -5,17 +5,19 @@ import (
 
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/app"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/command"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/features/duplicate"
 	"github.com/go-telegram/bot"
 )
 
-func NewMenuManager(app *app.App) *MenuManager {
+func NewMenuManager(duplicateMenuHandler *duplicate.MenuHandler, commandManager *command.CommandManager, app *app.App) *MenuManager {
 	mm := &MenuManager{
-		userState:      make(map[int64]*MenuState),
-		router:         NewCallbackRouter(),
-		messageRouter:  NewMessagerRouter(),
-		commandManager: *command.New(),
-		configService:  app.Services.Config,
-		chatService:    app.Services.Chat,
+		userState:        make(map[int64]*MenuState),
+		router:           NewCallbackRouter(),
+		messageRouter:    NewMessagerRouter(),
+		commandManager:   *commandManager,
+		configService:    app.Services.Config,
+		chatService:      app.Services.Chat,
+		duplicateHandler: duplicateMenuHandler,
 	}
 
 	mm.registerCallbackRoutes()

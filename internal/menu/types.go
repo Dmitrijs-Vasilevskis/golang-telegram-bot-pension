@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/command"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/features/duplicate"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/service"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -45,15 +46,12 @@ type MenuState struct {
 }
 
 type MenuManager struct {
-	userState      map[int64]*MenuState
-	commandManager command.CommandManager
-	router         *CallbackRouter
-	messageRouter  *MessageRouter
-	mu             sync.RWMutex
-	configService  service.ConfigService
-	chatService    service.ChatService
-}
-
-type FeatureHandler interface {
-	Handle(ctx context.Context, b *bot.Bot, update *models.Update, parts []string)
+	userState        map[int64]*MenuState
+	commandManager   command.CommandManager
+	router           *CallbackRouter
+	messageRouter    *MessageRouter
+	mu               sync.RWMutex
+	configService    service.ConfigService
+	chatService      service.ChatService
+	duplicateHandler *duplicate.MenuHandler
 }

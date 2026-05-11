@@ -1,5 +1,12 @@
 package menu
 
+import (
+	"context"
+
+	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
+)
+
 func (mm *MenuManager) registerCallbackRoutes() {
 	mm.router.Register("nav:main", mm.handleMain)
 
@@ -26,6 +33,8 @@ func (mm *MenuManager) registerCallbackRoutes() {
 func (mm *MenuManager) registerMessageRoutes() {
 	mm.messageRouter.Register(
 		StateDuplicateMessage,
-		mm.handleDuplicateMessage,
+		func(ctx context.Context, b *bot.Bot, update *models.Update, state *MenuState) {
+			mm.duplicateHandler.Handle(ctx, b, update, state.ChatID, state.DMChannelID)
+		},
 	)
 }
