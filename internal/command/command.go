@@ -1,5 +1,7 @@
 package command
 
+import "github.com/go-telegram/bot"
+
 type Command struct {
 	Name        string
 	Icon        string
@@ -7,6 +9,7 @@ type Command struct {
 	Description string
 	IsFeature   bool
 	System      bool
+	Handler     bot.HandlerFunc
 }
 
 type CommandManager struct {
@@ -18,70 +21,28 @@ func New() *CommandManager {
 		commands: make(map[string]*Command),
 	}
 
-	cm.initCommands()
+	cm.initSystemCommands()
 
 	return cm
 }
 
-func (cm *CommandManager) initCommands() {
-	cm.commands["ask"] = &Command{
-		Name:        "Ask",
-		Key:         "ask",
-		Description: "Ask the bot any question and get an AI-powered answer.",
-		IsFeature:   false,
-		System:      false,
-	}
-
-	cm.commands["look"] = &Command{
-		Name:        "Look",
-		Key:         "look",
-		Description: "Analyze messages or media content in the chat.",
-		IsFeature:   false,
-		System:      false,
-	}
-
-	cm.commands["status"] = &Command{
-		Name:        "Status",
-		Key:         "status",
-		Description: "Check current bot status",
+func (cm *CommandManager) initSystemCommands() {
+	cm.Register(&Command{
+		Name:        "Start",
+		Key:         "start",
+		Description: "Initialize the bot in the dm chat",
 		IsFeature:   false,
 		System:      true,
-	}
+	})
+}
 
-	cm.commands["start"] = &Command{
-		Name:      "Start",
-		Key:       "start",
-		IsFeature: false,
-		System:    true,
-	}
+func (cm *CommandManager) Register(cmd *Command) {
+	cm.commands[cmd.Key] = cmd
+}
 
-	cm.commands["factcheck"] = &Command{
-		Name:        "Facksheck",
-		Key:         "factcheck",
-		Description: "Verify whether a statement is true or misleading.",
-		IsFeature:   false,
-		System:      false,
-	}
-
-	cm.commands["summary"] = &Command{
-		Name: "Summary",
-		Key:  "summary",
-		Description: "Quickly generate a summary of recent chat activity.\n\n" +
-			"Use `/summary <count>` (e.g. `/summary 200`) to choose how many messages to include.\n\n" +
-			"• Maximum: 400 messages\n" +
-			"• Messages are anonymized and securely processed",
-		Icon:      "💾",
-		IsFeature: true,
-		System:    false,
-	}
-
-	cm.commands["duplicate_dm"] = &Command{
-		Name:        "Duplicate DM",
-		Key:         "duplicate_dm",
-		Description: "Sends a copy of messages you send to the bot in private (DM) to the selected group chat.",
-		Icon:        "💾",
-		IsFeature:   true,
-		System:      false,
+func (cm *CommandManager) RegisterAll(cmds []*Command) {
+	for _, cmd := range cmds {
+		cm.Register(cmd)
 	}
 }
 
