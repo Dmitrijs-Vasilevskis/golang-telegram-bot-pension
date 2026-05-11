@@ -126,7 +126,7 @@ func (r *Repository) CountMessages(ctx context.Context, chatID int64) (int64, er
 	return count, nil
 }
 
-func (r *Repository) DeleteByChatID(ctx context.Context, chatID int64) (int64, error) {
+func (r *Repository) DeleteMessagesByChatID(ctx context.Context, chatID int64) (int64, error) {
 	query := `DELETE FROM messages WHERE chat_id=$1`
 
 	res, err := r.db.Exec(ctx, query, chatID)

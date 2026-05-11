@@ -8,11 +8,19 @@ import (
 	"syscall"
 
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/app"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/command"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/database"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/dispatcher"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/features/ask"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/features/duplicate"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/features/factcheck"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/features/look"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/features/status"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/features/summary"
 	chatHandler "github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/handlers/chat"
 	embedHandler "github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/handlers/embed"
 	messageHandler "github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/handlers/messages"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/logger"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/menu"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/middleware"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/repository"
@@ -61,7 +69,22 @@ func main() {
 	mw := middleware.New(services.Chat)
 
 	app := app.New(db, services)
-	menuManager := menu.NewMenuManager(app)
+
+	allCommands := []*command.Command{
+		factcheck.New(&app.GeminiService),
+		summary.New(repo, &app.GeminiService),
+		ask.New(&app.GeminiService),
+		look.New(&app.GeminiService),
+		duplicate.New(),
+		status.New(),
+	}
+
+	cm := command.New()
+	cm.RegisterAll(allCommands)
+
+	duplicateFeature := duplicate.NewDuplicate(&services.Chat)
+	duplicateMenuHandler := duplicate.NewMenuHandler(duplicateFeature)
+	menuManager := menu.NewMenuManager(duplicateMenuHandler, cm, app)
 
 	r := router.NewRouter()
 
@@ -91,7 +114,7 @@ func main() {
 				update.Message != nil &&
 				update.Message.Chat.Type != models.ChatTypePrivate
 		},
-		dispatcher.MainHandler(app, r, mw))
+		dispatcher.MainHandler(app, r, mw, cm))
 
 	botClient.RegisterHandlerMatchFunc(
 		func(update *models.Update) bool {
@@ -102,21 +125,23 @@ func main() {
 		})
 
 	botClient.RegisterHandlerMatchFunc(func(update *models.Update) bool {
+		logger.DebugJson(update)
 		if update == nil || update.MyChatMember == nil {
 			return false
 		}
 
 		myChatMember := update.MyChatMember
+		botID := botClient.ID()
 
-		if myChatMember != nil &&
-			myChatMember.NewChatMember.Member != nil &&
-			myChatMember.NewChatMember.Member.User.ID == botClient.ID() {
+		if myChatMember.NewChatMember.Member != nil &&
+			myChatMember.NewChatMember.Member.User != nil &&
+			myChatMember.NewChatMember.Member.User.ID == botID {
 			return true
 		}
 
-		if myChatMember != nil &&
-			myChatMember.OldChatMember.Member != nil &&
-			myChatMember.OldChatMember.Left.User.ID == botClient.ID() {
+		if myChatMember.NewChatMember.Left != nil &&
+			myChatMember.NewChatMember.Left.User != nil &&
+			myChatMember.NewChatMember.Left.User.ID == botID {
 			return true
 		}
 
@@ -128,13 +153,19 @@ func main() {
 
 			newMember := myChatMember.NewChatMember
 
-			if newMember.Type == models.ChatMemberTypeMember && newMember.Member.User.IsBot &&
-				(newMember.Member.User.ID == botID) {
+			if newMember.Member != nil &&
+				newMember.Member.User != nil &&
+				newMember.Member.User.IsBot &&
+				newMember.Member.User.ID == botID {
+
 				chatHandler.HandleJoinChat(ctx, bot, update, app)
 			}
 
-			if newMember.Type == models.ChatMemberTypeLeft && newMember.Left.User.IsBot &&
-				(newMember.Left.User.ID == botID) {
+			if newMember.Left != nil &&
+				newMember.Left.User != nil &&
+				newMember.Left.User.IsBot &&
+				newMember.Left.User.ID == botID {
+
 				chatHandler.HandleLeaveChat(ctx, bot, update, app.DB)
 			}
 		})

@@ -135,6 +135,16 @@ func (r *Repository) SyncChatAdmins(ctx context.Context, chatID int64, admins []
 	return nil
 }
 
+func (r *Repository) DeleteChatById(ctx context.Context, chatID int64) (bool, error) {
+	cmdTag, err := r.db.Exec(ctx, `DELETE FROM chats WHERE id = $1`, chatID)
+
+	if err != nil {
+		return false, fmt.Errorf("failed to delete chat: %w", err)
+	}
+
+	return cmdTag.RowsAffected() == 1, nil
+}
+
 func (r *Repository) GetChatConfig(ctx context.Context, chatID int64) (*models.BotConfig, error) {
 	var config models.BotConfig
 	err := r.db.QueryRow(ctx, `
