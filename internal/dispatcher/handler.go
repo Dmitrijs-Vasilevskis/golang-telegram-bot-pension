@@ -4,15 +4,17 @@ import (
 	"context"
 
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/app"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/command"
 	messageHandler "github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/handlers/messages"
 	moderHandler "github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/handlers/moderation"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/helpers"
+	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/middleware"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/router"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 )
 
-func MainHandler(app *app.App, r *router.Router) bot.HandlerFunc {
+func MainHandler(app *app.App, r *router.Router, mw *middleware.Middleware, cm *command.CommandManager) bot.HandlerFunc {
 	return func(ctx context.Context, bot *bot.Bot, update *models.Update) {
 		if update == nil || update.Message == nil {
 			return
@@ -25,10 +27,21 @@ func MainHandler(app *app.App, r *router.Router) bot.HandlerFunc {
 			messageText = message.Caption
 		}
 
-		cmd := helpers.ParseCommand(messageText)
+		cmdKey := helpers.ParseCommand(messageText)
+		chatID := message.Chat.ID
 
-		if handler, exists := commandHandlers[cmd]; exists {
-			handler(ctx, bot, update, app)
+		if cmd, exists := cm.GetByKey(cmdKey); exists {
+			enabled, err := mw.CommandMiddleware(ctx, chatID, cmd.Key)
+
+			if err != nil {
+				return
+			}
+
+			if !enabled {
+				return
+			}
+
+			cmd.Handler(ctx, bot, update)
 			return
 		}
 
@@ -38,6 +51,13 @@ func MainHandler(app *app.App, r *router.Router) bot.HandlerFunc {
 
 		r.Handle(ctx, bot, update)
 
-		messageHandler.RecordMessage(ctx, bot, update, app)
+		enabled, err := mw.SummaryMiddleware(ctx, chatID)
+		if err != nil {
+			return
+		}
+
+		if enabled {
+			messageHandler.RecordMessage(ctx, bot, update, app)
+		}
 	}
 }

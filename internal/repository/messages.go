@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/database"
 	"github.com/Dmitrijs-Vasilevskis/go-telegram-bot/internal/models"
 	"github.com/jackc/pgx/v5"
 )
@@ -14,15 +13,7 @@ const (
 	MaxMessagesPerChat = 400
 )
 
-type MessageRepository struct {
-	db database.DBTX
-}
-
-func NewMessageRepository(db database.DBTX) *MessageRepository {
-	return &MessageRepository{db}
-}
-
-func (r *MessageRepository) Save(ctx context.Context, m *models.Message) error {
+func (r *Repository) Save(ctx context.Context, m *models.Message) error {
 	query := `
 		INSERT INTO messages
 		(chat_id, message_id, username, text)
@@ -39,7 +30,7 @@ func (r *MessageRepository) Save(ctx context.Context, m *models.Message) error {
 	return err
 }
 
-func (r *MessageRepository) Update(ctx context.Context, m *models.Message) error {
+func (r *Repository) Update(ctx context.Context, m *models.Message) error {
 	query := `
 		UPDATE messages
 		SET text=@text, updated_at=@updated_at
@@ -55,7 +46,7 @@ func (r *MessageRepository) Update(ctx context.Context, m *models.Message) error
 	return err
 }
 
-func (r *MessageRepository) GetLastMessages(ctx context.Context, chatID int64, limit int) ([]*models.Message, error) {
+func (r *Repository) GetLastMessages(ctx context.Context, chatID int64, limit int) ([]*models.Message, error) {
 	query := `
 		SELECT id, chat_id, message_id, username, text, created_at, updated_at
 		FROM messages
@@ -79,7 +70,7 @@ func (r *MessageRepository) GetLastMessages(ctx context.Context, chatID int64, l
 	return messages, nil
 }
 
-func (r *MessageRepository) TrimMessages(ctx context.Context, chatID int64, limit int) error {
+func (r *Repository) TrimMessages(ctx context.Context, chatID int64, limit int) error {
 	query := `
 		DELETE FROM messages
 		WHERE chat_id = $1
@@ -97,9 +88,9 @@ func (r *MessageRepository) TrimMessages(ctx context.Context, chatID int64, limi
 	return err
 }
 
-func (r *MessageRepository) GetMessagesInRange(ctx context.Context, chatID int64, from, to time.Time) ([]models.Message, error) {
+func (r *Repository) GetMessagesInRange(ctx context.Context, chatID int64, from, to time.Time) ([]models.Message, error) {
 	query := `
-		SELECT id, chat_id, username, text, created_at
+		SELECT id, chat_id, message_id, username, text, created_at, updated_at
 		FROM messages
 		WHERE chat_id = $1
 			AND created_at >= $2
@@ -122,7 +113,8 @@ func (r *MessageRepository) GetMessagesInRange(ctx context.Context, chatID int64
 	return messages, nil
 }
 
-func (r *MessageRepository) CountMessages(ctx context.Context, chatID int64) (int64, error) {
+// unsued
+func (r *Repository) CountMessages(ctx context.Context, chatID int64) (int64, error) {
 	query := `SELECT COUNT(*) FROM messages WHERE chat_id = $1`
 
 	var count int64
@@ -134,7 +126,7 @@ func (r *MessageRepository) CountMessages(ctx context.Context, chatID int64) (in
 	return count, nil
 }
 
-func (r *MessageRepository) DeleteByChatID(ctx context.Context, chatID int64) (int64, error) {
+func (r *Repository) DeleteMessagesByChatID(ctx context.Context, chatID int64) (int64, error) {
 	query := `DELETE FROM messages WHERE chat_id=$1`
 
 	res, err := r.db.Exec(ctx, query, chatID)

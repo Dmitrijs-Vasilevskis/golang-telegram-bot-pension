@@ -53,7 +53,7 @@ func RecordMessage(
 	}
 
 	err := database.WithTransaction(ctx, app.DB, func(tx pgx.Tx) error {
-		txRepo := repository.NewMessageRepository(tx)
+		txRepo := repository.NewRepository(tx)
 
 		if err := txRepo.Save(ctx, currentMessage); err != nil {
 			return err

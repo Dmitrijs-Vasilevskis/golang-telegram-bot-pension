@@ -24,8 +24,7 @@ func HandleLeaveChat(ctx context.Context, b *bot.Bot, update *models.Update, db 
 	var isBotLeaving bool
 	var chatID int64
 
-	if chatMember.NewChatMember.Member != nil &&
-		chatMember.NewChatMember.Left != nil &&
+	if chatMember.NewChatMember.Left != nil &&
 		chatMember.NewChatMember.Left.User != nil {
 
 		leftUser := chatMember.NewChatMember.Left.User
@@ -43,14 +42,23 @@ func HandleLeaveChat(ctx context.Context, b *bot.Bot, update *models.Update, db 
 	log.Printf("Bot leaving chat %d, cleaning up messages...", chatID)
 
 	err := database.WithTransaction(ctx, db, func(tx pgx.Tx) error {
-		messageRepo := repository.NewMessageRepository(tx)
+		repo := repository.NewRepository(tx)
 
-		deletedCount, err := messageRepo.DeleteByChatID(ctx, chatID)
+		deletedCount, err := repo.DeleteMessagesByChatID(ctx, chatID)
 		if err != nil {
 			return err
 		}
 
 		log.Printf("Deleted %d messages for chat %d", deletedCount, chatID)
+
+		deleted, err := repo.DeleteChatById(ctx, chatID)
+		if err != nil {
+			return err
+		}
+
+		if !deleted {
+			log.Printf("Warning: Chat %d was not found during deletion", chatID)
+		}
 
 		return nil
 	})
